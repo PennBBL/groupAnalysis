@@ -22,18 +22,18 @@ option_list = list(
   make_option(c("-p", "--imagepaths"), action="store", default=NA, type='character',
               help="Name of the variable in the covariate file that contains the path to the images to be analyzed"), 
   make_option(c("-m", "--mask"), action="store", default=NA, type='character',
-              help="Name of mask to be used. Should be located on the input directory"), 
+              help="Full path to mask"), 
   make_option(c("-s", "--smoothing"), action="store", default=NA, type='numeric',
-              help="The smoothing required for the fourd image. Default is NA"), 
+              help="The smoothing in sigmas required for the fourd image. Please write in 0 if no smoothing is wanted"), 
   make_option(c("-i", "--inclusion"), action="store", default=NA, type='character',
-              help="Inclusion variable on dataset. By default 1 should mean include"), 
+              help="Name of inclusion variable on dataset. By default 1 means include. This will subset your rds file"), 
   make_option(c("-u", "--subjId"), action="store", default=NA, type='character',
               help="subjID name on the covariates dataset"), 
   make_option(c("-f", "--formula"), action="store", default=NA, type='character',
               help="Formula for covariates to be used, should only include the right hand side of the formula.
               DO NOT INCLUDE SPACES IN THE FORMULA
               Example: ~ stai_stai_tr+sex+s(age)+s(age,by=sex)"), 
-  make_option(c("-r", "--random"), action="store", default=NA, type='character',
+  make_option(c("-r", "--random"), action="store", default=NULL, type='character',
               help="Formula for random effects to be used, should only include the right hand side of the formula.
               Example: ~(1|bblid)"), 
   make_option(c("-n", "--numbercores"), action="store", default=10, type='numeric',
@@ -207,6 +207,7 @@ print("Data has been loaded")
 ##############################################################################
 pOut<-matrix(NA,nrow=dim(imageMat)[2],ncol=1)
 tOut<-matrix(NA,nrow=dim(imageMat)[2],ncol=1)
+zOut<-matrix(NA,nrow=dim(imageMat)[2],ncol=1)
 
 print("Preallocate output done")
 
@@ -253,30 +254,44 @@ for (j in 1:dim(model[[1]])[1]) {
     
     for(i in 1:length(model)){
       pOut[i,1]<- model[[i]][which(rownames(model[[i]]) == variable),4]
+      zOut[i,1]<- qnorm(model[[i]][which(rownames(model[[i]]) == variable),4], lower.tail=F)
     }
     
     pOutImage<-antsImageClone(mask)
     pOutImage[mask==1]<-pOut
     
+    zOutImage<-antsImageClone(mask)
+    zOutImage[mask==1]<-zOut
+    
     var <- gsub("\\(", "", variable)
     var <- gsub("\\)", "", var)
+    var <- gsub(",", "", var)
+    var <- gsub("=", "", var)
+    
+    
     
     antsImageWrite(pOutImage,paste0("gamm4P_",var,".nii.gz"))
+    antsImageWrite(zOutImage,paste0("gamm4Z_",var,".nii.gz"))
   }
   else {
     for(i in 1:length(model)){
       pOut[i,1]<-model[[i]][which(rownames(model[[i]]) == variable),4]
+      zOut[i,1]<-qnorm(model[[i]][which(rownames(model[[i]]) == variable),4], lower.tail=F)
       tOut[i,1]<-model[[i]][which(rownames(model[[i]]) == variable),3]
     }
+    
     pOutImage<-antsImageClone(mask)
+    zOutImage<-antsImageClone(mask)
     tOutImage<-antsImageClone(mask)
     pOutImage[mask==1]<-pOut
+    zOutImage[mask==1]<-zOut
     tOutImage[mask==1]<-tOut
     
     var <- gsub("\\(", "", variable)
     var <- gsub("\\)", "", var)
     
     antsImageWrite(pOutImage,paste0("gamm4P_",var,".nii.gz"))
+    antsImageWrite(zOutImage,paste0("gamm4Z_",var,".nii.gz"))
     antsImageWrite(tOutImage,paste0("gamm4T_",var,".nii.gz"))
     
   }
