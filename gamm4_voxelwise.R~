@@ -151,7 +151,6 @@ outName <- gsub("\\(","",outName)
 outName <- gsub("\\)","",outName)
 outName <- gsub(",","",outName)
 outName <- gsub("=","",outName)
-outName <- gsub("\\*","and",outName)
 
 random <- gsub("~", "", randomFormula)
 random <- gsub("\\(", "", random)
@@ -290,7 +289,6 @@ for (j in 1:dim(model[[1]])[1]) {
     
     var <- gsub("\\(", "", variable)
     var <- gsub("\\)", "", var)
-    gsub("\\*","and",var)
     
     antsImageWrite(pOutImage,paste0("gamm4P_",var,".nii.gz"))
     antsImageWrite(zOutImage,paste0("gamm4Z_",var,".nii.gz"))
