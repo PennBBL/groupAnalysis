@@ -33,13 +33,10 @@ option_list = list(
               help="Formula for covariates to be used, should only include the right hand side of the formula.
               DO NOT INCLUDE SPACES IN THE FORMULA
               Example: ~ stai_stai_tr+sex+s(age)+s(age,by=sex)"), 
-  make_option(c("-r", "--random"), action="store", default=NULL, type='character',
-              help="Formula for random effects to be used, should only include the right hand side of the formula.
-              Example: ~(1|bblid)"), 
   make_option(c("-n", "--numbercores"), action="store", default=10, type='numeric',
               help="Number of cores to be used, default is 10")
   
-)
+  )
 
 opt = parse_args(OptionParser(option_list=option_list))
 
@@ -159,7 +156,7 @@ random <- gsub("\\(", "", random)
 random <- gsub("\\)", "", random)
 random <- gsub("\\|", "", random)
 
-outsubDir <- paste0("n",dim(subjData)[1],"gamm_Cov_",outName,"_Random_",random)
+outsubDir <- paste0("n",dim(subjData)[1],"gamm_Cov_",outName)
 
 outsubDir<-paste(OutDir,outsubDir,sep="/")
 
@@ -232,9 +229,9 @@ print("Formula is done")
 # This can be customized based on what you need form the model 
 # Never save the whole gamm4 object it will be too big and will mclapply
 model <- mclapply(m, function(x) {
-  foo <- summary(gamm4(formula = x, data=subjData, REML=T, random = as.formula(randomFormula))$gam)
+  foo <- summary(gam(formula = x, data=subjData, method="REML"))
   return(rbind(foo$p.table,foo$s.table))
-  }, mc.cores = ncores)
+}, mc.cores = ncores)
 
 loopTime<-proc.time()-timeOn
 
