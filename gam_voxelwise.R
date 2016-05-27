@@ -43,7 +43,7 @@ opt = parse_args(OptionParser(option_list=option_list))
 for (i in 1:length(opt)){
   if (is.na(opt)[i] == T) {
     cat('User did not specify all arguments.\n')
-    cat('Use gamm4_voxelwise.R -h for an expanded usage menu.\n')
+    cat('Use gam_voxelwise.R -h for an expanded usage menu.\n')
     quit()
   }
 }
@@ -156,7 +156,7 @@ random <- gsub("\\(", "", random)
 random <- gsub("\\)", "", random)
 random <- gsub("\\|", "", random)
 
-outsubDir <- paste0("n",dim(subjData)[1],"gamm_Cov_",outName)
+outsubDir <- paste0("n",dim(subjData)[1],"gam_Cov_",outName)
 
 outsubDir<-paste(OutDir,outsubDir,sep="/")
 
@@ -224,10 +224,10 @@ m <- mclapply(1:dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat
 
 print("Formula is done")
 
-# We run gamm4 for each element in our list of formulas
+# We run gam for each element in our list of formulas
 # This will return a list with each element being a table of p-values
 # This can be customized based on what you need form the model 
-# Never save the whole gamm4 object it will be too big and will mclapply
+# Never save the whole gam object it will be too big and will mclapply
 model <- mclapply(m, function(x) {
   foo <- summary(gam(formula = x, data=subjData, method="REML"))
   return(rbind(foo$p.table,foo$s.table))
@@ -269,8 +269,8 @@ for (j in 1:dim(model[[1]])[1]) {
     
     
     
-    antsImageWrite(pOutImage,paste0("gamm4P_",var,".nii.gz"))
-    antsImageWrite(zOutImage,paste0("gamm4Z_",var,".nii.gz"))
+    antsImageWrite(pOutImage,paste0("gamP_",var,".nii.gz"))
+    antsImageWrite(zOutImage,paste0("gamZ_",var,".nii.gz"))
   }
   else {
     for(i in 1:length(model)){
@@ -291,9 +291,9 @@ for (j in 1:dim(model[[1]])[1]) {
     var <- gsub("\\*","and",var)
     var <- gsub(":","and",var)
     
-    antsImageWrite(pOutImage,paste0("gamm4P_",var,".nii.gz"))
-    antsImageWrite(zOutImage,paste0("gamm4Z_",var,".nii.gz"))
-    antsImageWrite(tOutImage,paste0("gamm4T_",var,".nii.gz"))
+    antsImageWrite(pOutImage,paste0("gamP_",var,".nii.gz"))
+    antsImageWrite(zOutImage,paste0("gamZ_",var,".nii.gz"))
+    antsImageWrite(tOutImage,paste0("gamT_",var,".nii.gz"))
     
   }
 }
