@@ -180,7 +180,6 @@ system( paste0("echo Smoothing is: ", smooth," >> ", outsubDir,"/logs.txt"))
 system( paste0("echo Inclusion variable name is: ", inclusionName,">> ", outsubDir,"/logs.txt"))
 system( paste0("echo ID variable name is: ", subjID,">> ", outsubDir,"/logs.txt"))
 system( paste0("echo Formula for fixed effects is: ", outName,">> ", outsubDir,"/logs.txt"))
-system( paste0("echo Formula for random effects is: ", random,">> ", outsubDir,"/logs.txt"))
 system( paste0("echo Number of cores is: ", ncores," >> ", outsubDir,"/logs.txt"))
 
 
@@ -215,29 +214,39 @@ print("Preallocate output done")
 ##############################################################################
 timeOn<-proc.time()
 
-
+length.voxel <- ceiling(dim(imageMat)[2]/20)
 
 # We create a list of formulas for each voxel in our data. 
 # Each element in the list will have formula with a different voxel as the dependent variable
-m <- mclapply(1:dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
 
-
-print("Formula is done")
-
-# We run gam for each element in our list of formulas
-# This will return a list with each element being a table of p-values
-# This can be customized based on what you need form the model 
-# Never save the whole gam object it will be too big and will mclapply
+m <- mclapply(1:10, function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
 model <- mclapply(m, function(x) {
   foo <- summary(gam(formula = x, data=subjData, method="REML"))
   return(rbind(foo$p.table,foo$s.table))
 }, mc.cores = ncores)
+
+
+for (k in 1:20) {
+  if (k == 20) {
+  m <- mclapply((11 + (k-1)*length.voxel):dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+  } else {
+  m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+  }
+  model.temp <- mclapply(m, function(x) {
+    foo <- summary(gam(formula = x, data=subjData, method="REML"))
+    return(rbind(foo$p.table,foo$s.table))
+  }, mc.cores = ncores)
+  
+  model <- c(model, model.temp)
+}
 
 loopTime<-proc.time()-timeOn
 
 
 print("Models are done")
 print(loopTime/60)
+
+
 
 ##############################################################################
 ################        Allocate out t-map and z-map            ###############
