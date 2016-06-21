@@ -66,6 +66,7 @@ suppressMessages(require(plyr))
 suppressMessages(require(ANTsR))
 suppressMessages(require(parallel))
 suppressMessages(require(optparse))
+suppressMessages(require(fslr))
 
 
 ##############################################################################
@@ -106,27 +107,37 @@ setwd(OutDir)
 ################     Create and output fourd image             ###############
 ##############################################################################
 
-fourdcommand <- subjData[1, namePaths]
-for (i in 2:dim(subjData)[1]) {
-  fourdcommand <- paste(fourdcommand, subjData[i, namePaths])
+subjList <- as.character(subjData[,grep(namePaths, names(subjData))])
+length.subj <- length(subjList)
+k <- 4
+break.subj <- ceiling(length.subj / k)
+
+subMergeNames <- "foo"
+for (i in 1:k) {
+  if (i == k) {
+    out <- paste0("fourd_",i,".nii.gz")
+    fslmerge(subjList[(1 + (i-1)*break.subj):length.subj], direction="t", outfile=out)
+    subMergeNames <- c(subMergeNames, out)
+  } else {
+    out <- paste0("fourd_",i,".nii.gz")
+    fslmerge(subjList[(1 + (i-1)*break.subj):((i)*break.subj)], direction="t", outfile=out)
+    subMergeNames <- c(subMergeNames, out)
+  }
 }
 
-fourdcommand <- paste('fslmerge -t fourd.nii.gz', fourdcommand)
-
-system(fourdcommand, wait=T)
-print("4d image succesfully created")
+subMergeNames <- subMergeNames[-1]
+fslmerge(subMergeNames, direction="t", outfile="fourd.nii.gz")
 
 system(paste0("scp ", maskName," ",OutDir, "/mask.nii.gz"), wait=T)
 print("mask succesfully copied")
 
+system('rm -f fourd_*.nii.gz')
+
 if (smooth > 0) {
-  system(paste0("fslmaths ",OutDir, "/fourd.nii.gz -s ",smooth," ",OutDir,"/fourd.nii.gz"), wait=T)
-  print("Smoothing of 4d image done")
+  fslsmooth("fourd.nii.gz", sigma = smooth, outfile="fourd.nii.gz")
 } else {
   print("No smoothing done")
 }
-
-
 
 
 ##############################################################################
@@ -228,9 +239,9 @@ model <- mclapply(m, function(x) {
 
 for (k in 1:20) {
   if (k == 20) {
-  m <- mclapply((11 + (k-1)*length.voxel):dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+    m <- mclapply((11 + (k-1)*length.voxel):dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
   } else {
-  m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+    m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
   }
   model.temp <- mclapply(m, function(x) {
     foo <- summary(gam(formula = x, data=subjData, method="REML"))
