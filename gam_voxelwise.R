@@ -1,9 +1,9 @@
 ##############################################################################
 ################                                               ###############
-################   GO1-GO2 Voxelwise Analysis for CBF          ###############
+################             GAM Voxelwise Wrapper             ###############
 ################           Angel Garcia de la Garza            ###############
 ################              angelgar@upenn.edu               ###############
-################                 05/10/2016                    ###############
+################                 07/11/2016                    ###############
 ##############################################################################
 
 suppressMessages(require(optparse))
@@ -116,11 +116,11 @@ subMergeNames <- "foo"
 for (i in 1:k) {
   if (i == k) {
     out <- paste0("fourd_",i,".nii.gz")
-    fslmerge(subjList[(1 + (i-1)*break.subj):length.subj], direction="t", outfile=out)
+    fslmerge(subjList[(1 + (i-1)*break.subj):length.subj], direction="t", outfile=out, drop_dim=F)
     subMergeNames <- c(subMergeNames, out)
   } else {
     out <- paste0("fourd_",i,".nii.gz")
-    fslmerge(subjList[(1 + (i-1)*break.subj):((i)*break.subj)], direction="t", outfile=out)
+    fslmerge(subjList[(1 + (i-1)*break.subj):((i)*break.subj)], direction="t", outfile=out, drop_dim=F)
     subMergeNames <- c(subMergeNames, out)
   }
 }

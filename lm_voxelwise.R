@@ -1,6 +1,6 @@
 ##############################################################################
 ################                                               ###############
-################             GAMM Voxelwise Wrapper            ###############
+################              LM Voxelwise Wrapper             ###############
 ################           Angel Garcia de la Garza            ###############
 ################              angelgar@upenn.edu               ###############
 ################                 07/11/2016                    ###############
@@ -33,20 +33,17 @@ option_list = list(
               help="Formula for covariates to be used, should only include the right hand side of the formula.
               DO NOT INCLUDE SPACES IN THE FORMULA
               Example: ~ stai_stai_tr+sex+s(age)+s(age,by=sex)"), 
-  make_option(c("-r", "--random"), action="store", default=NULL, type='character',
-              help="Formula for random effects to be used, should only include the right hand side of the formula.
-              Example: ~(1|bblid)"), 
   make_option(c("-n", "--numbercores"), action="store", default=10, type='numeric',
               help="Number of cores to be used, default is 10")
   
-)
+  )
 
 opt = parse_args(OptionParser(option_list=option_list))
 
 for (i in 1:length(opt)){
   if (is.na(opt)[i] == T) {
     cat('User did not specify all arguments.\n')
-    cat('Use gamm4_voxelwise.R -h for an expanded usage menu.\n')
+    cat('Use lm_voxelwise.R -h for an expanded usage menu.\n')
     quit()
   }
 }
@@ -70,7 +67,6 @@ suppressMessages(require(ANTsR))
 suppressMessages(require(parallel))
 suppressMessages(require(optparse))
 suppressMessages(require(fslr))
-
 
 
 ##############################################################################
@@ -120,11 +116,11 @@ subMergeNames <- "foo"
 for (i in 1:k) {
   if (i == k) {
     out <- paste0("fourd_",i,".nii.gz")
-    fslmerge(subjList[(1 + (i-1)*break.subj):length.subj], direction="t", outfile=out)
+    fslmerge(subjList[(1 + (i-1)*break.subj):length.subj], direction="t", outfile=out, drop_dim=F)
     subMergeNames <- c(subMergeNames, out)
   } else {
     out <- paste0("fourd_",i,".nii.gz")
-    fslmerge(subjList[(1 + (i-1)*break.subj):((i)*break.subj)], direction="t", outfile=out)
+    fslmerge(subjList[(1 + (i-1)*break.subj):((i)*break.subj)], direction="t", outfile=out, drop_dim=F)
     subMergeNames <- c(subMergeNames, out)
   }
 }
@@ -142,8 +138,6 @@ if (smooth > 0) {
 } else {
   print("No smoothing done")
 }
-
-
 
 
 ##############################################################################
@@ -173,7 +167,7 @@ random <- gsub("\\(", "", random)
 random <- gsub("\\)", "", random)
 random <- gsub("\\|", "", random)
 
-outsubDir <- paste0("n",dim(subjData)[1],"gamm_Cov_",outName,"_Random_",random)
+outsubDir <- paste0("n",dim(subjData)[1],"lm_Cov_",outName)
 
 outsubDir<-paste(OutDir,outsubDir,sep="/")
 
@@ -197,7 +191,6 @@ system( paste0("echo Smoothing is: ", smooth," >> ", outsubDir,"/logs.txt"))
 system( paste0("echo Inclusion variable name is: ", inclusionName,">> ", outsubDir,"/logs.txt"))
 system( paste0("echo ID variable name is: ", subjID,">> ", outsubDir,"/logs.txt"))
 system( paste0("echo Formula for fixed effects is: ", outName,">> ", outsubDir,"/logs.txt"))
-system( paste0("echo Formula for random effects is: ", random,">> ", outsubDir,"/logs.txt"))
 system( paste0("echo Number of cores is: ", ncores," >> ", outsubDir,"/logs.txt"))
 
 
@@ -239,8 +232,8 @@ length.voxel <- ceiling(dim(imageMat)[2]/20)
 
 m <- mclapply(1:10, function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
 model <- mclapply(m, function(x) {
-  foo <- summary(gamm4(formula = x, data=subjData, REML=T, random = as.formula(randomFormula))$gam)
-  return(rbind(foo$p.table,foo$s.table))
+  foo <- summary(lm(formula = x, data=subjData, method="REML"))
+  return(foo$coefficients)
 }, mc.cores = ncores)
 
 
@@ -251,8 +244,8 @@ for (k in 1:20) {
     m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
   }
   model.temp <- mclapply(m, function(x) {
-    foo <- summary(gamm4(formula = x, data=subjData, REML=T, random = as.formula(randomFormula))$gam)
-    return(rbind(foo$p.table,foo$s.table))
+    foo <- summary(lm(formula = x, data=subjData, method="REML"))
+    return(foo$coefficients)
   }, mc.cores = ncores)
   
   model <- c(model, model.temp)
@@ -263,6 +256,8 @@ loopTime<-proc.time()-timeOn
 
 print("Models are done")
 print(loopTime/60)
+
+
 
 ##############################################################################
 ################        Allocate out t-map and z-map            ###############
@@ -294,8 +289,8 @@ for (j in 1:dim(model[[1]])[1]) {
     
     
     
-    antsImageWrite(pOutImage,paste0("gamm4P_",var,".nii.gz"))
-    antsImageWrite(zOutImage,paste0("gamm4Z_",var,".nii.gz"))
+    antsImageWrite(pOutImage,paste0("lmP_",var,".nii.gz"))
+    antsImageWrite(zOutImage,paste0("lmZ_",var,".nii.gz"))
   }
   else {
     for(i in 1:length(model)){
@@ -316,9 +311,9 @@ for (j in 1:dim(model[[1]])[1]) {
     var <- gsub("\\*","and",var)
     var <- gsub(":","and",var)
     
-    antsImageWrite(pOutImage,paste0("gamm4P_",var,".nii.gz"))
-    antsImageWrite(zOutImage,paste0("gamm4Z_",var,".nii.gz"))
-    antsImageWrite(tOutImage,paste0("gamm4T_",var,".nii.gz"))
+    antsImageWrite(pOutImage,paste0("lmP_",var,".nii.gz"))
+    antsImageWrite(zOutImage,paste0("lmZ_",var,".nii.gz"))
+    antsImageWrite(tOutImage,paste0("lmT_",var,".nii.gz"))
     
   }
 }
