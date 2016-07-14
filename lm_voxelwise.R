@@ -57,8 +57,6 @@ suppressMessages(require(ggplot2))
 suppressMessages(require(base))
 suppressMessages(require(reshape2))
 suppressMessages(require(nlme))
-suppressMessages(require(lme4))
-suppressMessages(require(gamm4))
 suppressMessages(require(stats))
 suppressMessages(require(knitr))
 suppressMessages(require(mgcv))
@@ -232,7 +230,7 @@ length.voxel <- ceiling(dim(imageMat)[2]/20)
 
 m <- mclapply(1:10, function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
 model <- mclapply(m, function(x) {
-  foo <- summary(lm(formula = x, data=subjData, method="REML"))
+  foo <- summary(lm(formula = x, data=subjData))
   return(foo$coefficients)
 }, mc.cores = ncores)
 
@@ -244,7 +242,7 @@ for (k in 1:20) {
     m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
   }
   model.temp <- mclapply(m, function(x) {
-    foo <- summary(lm(formula = x, data=subjData, method="REML"))
+    foo <- summary(lm(formula = x, data=subjData))
     return(foo$coefficients)
   }, mc.cores = ncores)
   
