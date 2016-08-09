@@ -1,6 +1,6 @@
 ##############################################################################
 ################                                               ###############
-################             GAM Voxelwise Wrapper             ###############
+################             LMER Voxelwise Wrapper            ###############
 ################           Angel Garcia de la Garza            ###############
 ################              angelgar@upenn.edu               ###############
 ################                 07/11/2016                    ###############
@@ -42,6 +42,7 @@ option_list = list(
               help="Option to skip creation of fourdD image and look for it in the Analysis Directory.
               4D image must be labeled as 'fourd.nii.gz'. Will also skip smoothing step.
               Default (FALSE) means to not skip")
+  
   )
 
 opt = parse_args(OptionParser(option_list=option_list))
@@ -49,13 +50,13 @@ opt = parse_args(OptionParser(option_list=option_list))
 for (i in 1:length(opt)){
   if (is.na(opt)[i] == T) {
     cat('User did not specify all arguments.\n')
-    cat('Use gam_voxelwise.R -h for an expanded usage menu.\n')
+    cat('Use lmer_voxelwise.R -h for an expanded usage menu.\n')
     quit()
   }
 }
 
 print("##############################################################################")
-print("################  Generalized Additive Model Voxelwise Script  ###############")
+print("################  Linear Mixed Effects Model Voxelwise Script  ###############")
 print("################            Angel Garcia de la Garza           ###############")
 print("################              angelgar@upenn.edu               ###############")
 print("################                 Version 2.0.0                 ###############")
@@ -81,6 +82,7 @@ suppressMessages(require(oro.nifti))
 suppressMessages(require(parallel))
 suppressMessages(require(optparse))
 suppressMessages(require(fslr))
+suppressMessages(require(lmerTest))
 
 
 
@@ -98,6 +100,7 @@ smooth <- opt$smoothing
 inclusionName <- opt$inclusion
 subjID <- opt$subjId
 covsFormula <- opt$formula
+randomFormula <- opt$random
 pAdjustMethod <- opt$padjust
 splits <- opt$splits
 ncores <- opt$numbercores
@@ -110,6 +113,7 @@ if (!any(pAdjustMethod == methods)) {
 }
 
 
+
 ##############################################################################
 ################            Load subject data                  ###############
 ##############################################################################
@@ -120,12 +124,9 @@ subset <- which(subjData[inclusionName] == 1) ##Find subset for analysis
 subjData <- subjData[subset, ] #subset data
 
 
-
 ##############################################################################
 ################    Create Analysis Directory                  ###############
 ##############################################################################
-
-
 print("Creating Analysis Directory")
 OutDir <- paste0(OutDirRoot, "/n",dim(subjData)[1],"_",namePaths,"_",inclusionName,"_smooth",as.character(smooth))
 dir.create(OutDir)
@@ -135,8 +136,8 @@ setwd(OutDir)
 ################     Create and output fourd image             ###############
 ##############################################################################
 
-
 if (!skipFourD) {
+  
   print("Merging images and saving out a fourd image")
   subjList <- as.character(subjData[,grep(namePaths, names(subjData))])
   length.subj <- length(subjList)
@@ -173,7 +174,6 @@ if (!skipFourD) {
   print("Skipping fourd image creation; Script will looking for file names fourd.nii.gz under first level directory")
 }
 
-
 system(paste0("scp ", maskName," ",OutDir, "/mask.nii.gz"), wait=T)
 print("mask succesfully copied")
 
@@ -196,6 +196,7 @@ print("Creating output directory")
 outName <- gsub("~", "", covsFormula)
 outName <- gsub(" ", "", outName)
 outName <- gsub("\\+","_",outName)
+outName <- gsub("\\|", "", outName)
 outName <- gsub("\\(","",outName)
 outName <- gsub("\\)","",outName)
 outName <- gsub(",","",outName)
@@ -204,7 +205,12 @@ outName <- gsub("=","",outName)
 outName <- gsub("\\*","and",outName)
 outName <- gsub(":","and",outName)
 
-outsubDir <- paste0("n",dim(subjData)[1],"gam_Cov_",outName)
+random <- gsub("~", "", randomFormula)
+random <- gsub("\\(", "", random)
+random <- gsub("\\)", "", random)
+
+
+outsubDir <- paste0("n",dim(subjData)[1],"lmer_Cov_",outName)
 
 outsubDir<-paste(OutDir,outsubDir,sep="/")
 
@@ -305,12 +311,14 @@ print("Running Test Model")
 
 
 m <- mclapply(1:10, function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
-test <- gam(formula = m[[1]], data=subjData, method="REML")
+test <- base::do.call(lmerTest::lmer, list(formula = m[[1]], data=subjData,  method="REML"))
+test <- lmerTest::lmer(formula = m[[1]], data=subjData, REML = TRUE)
+
 
 
 model <- mclapply(m, function(x) {
-  foo <- summary(gam(formula = x, data=subjData, method="REML"))
-  return(rbind(foo$p.table,foo$s.table))
+  foo <- base::do.call(lmerTest::lmer, list(formula = x, data=subjData,  method="REML"))
+  return(summary(foo)$coefficients)
 }, mc.cores = ncores)
 
 
@@ -322,8 +330,8 @@ for (k in 1:(splits)) {
     m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
   }
   model.temp <- mclapply(m, function(x) {
-    foo <- summary(gam(formula = x, data=subjData, method="REML"))
-    return(rbind(foo$p.table,foo$s.table))
+    foo <- base::do.call(lmerTest::lmer, list(formula = x, data=subjData,  method="REML"))
+    return(summary(foo)$coefficients)
   }, mc.cores = ncores)
   
   model <- c(model, model.temp)
@@ -368,17 +376,18 @@ for (j in 1:dim(model[[1]])[1]) {
     var <- gsub("=", "", var)
     
     
-    writeNIfTI(pOutImage,paste0("gamP_",var))
-    writeNIfTI(zOutImage,paste0("gamZ_",var))
+    writeNIfTI(pOutImage,paste0("lmerP_",var))
+    writeNIfTI(zOutImage,paste0("lmerZ_",var))
     if (pAdjustMethod != "none") {
-      writeNIfTI(pAdjustedOutImage,paste0("gamPadjusted_",pAdjustMethod, "_",var)) 
+      writeNIfTI(pAdjustedOutImage,paste0("lmerPadjusted_",pAdjustMethod, "_",var)) 
     }
   }
   else {
+    
     for(i in 1:length(model)){
-      pOut[i,1]<-model[[i]][which(rownames(model[[i]]) == variable),4]
-      zOut[i,1]<-qnorm(model[[i]][which(rownames(model[[i]]) == variable),4], lower.tail=F)
-      tOut[i,1]<-model[[i]][which(rownames(model[[i]]) == variable),3]
+      pOut[i,1]<-pt(abs(model[[i]][which(rownames(model[[i]]) == variable),4]),model[[i]][which(rownames(model[[i]]) == variable),3], lower.tail=F)*2
+      zOut[i,1]<-qnorm(pOut[i,1], lower.tail=F)
+      tOut[i,1]<-model[[i]][which(rownames(model[[i]]) == variable),4]
     }
     
     pOutImage<-mask
@@ -398,11 +407,11 @@ for (j in 1:dim(model[[1]])[1]) {
     var <- gsub("\\*","and",var)
     var <- gsub(":","and",var)
     
-    writeNIfTI(pOutImage,paste0("gamP_",var))
-    writeNIfTI(zOutImage,paste0("gamZ_",var))
-    writeNIfTI(tOutImage,paste0("gamT_",var))
+    writeNIfTI(pOutImage,paste0("lmerP_",var))
+    writeNIfTI(zOutImage,paste0("lmerZ_",var))
+    writeNIfTI(tOutImage,paste0("lmerT_",var))
     if (pAdjustMethod != "none") {
-      writeNIfTI(pAdjustedOutImage,paste0("gamPadjusted_",pAdjustMethod, "_",var)) 
+      writeNIfTI(pAdjustedOutImage,paste0("lmerPadjusted_",pAdjustMethod, "_",var)) 
     }
     
   }
