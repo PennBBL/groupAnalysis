@@ -359,7 +359,7 @@ for (j in 1:dim(model[[1]])[1]) {
     
     for(i in 1:length(model)){
       pOut[i,1]<- model[[i]][which(rownames(model[[i]]) == variable),4]
-      zOut[i,1]<- qnorm(model[[i]][which(rownames(model[[i]]) == variable),4], lower.tail=F)
+      zOut[i,1]<- qnorm((model[[i]][which(rownames(model[[i]]) == variable),4] / 2), lower.tail=F)
     }
     
     pOutImage<-mask
@@ -387,7 +387,7 @@ for (j in 1:dim(model[[1]])[1]) {
   else {
     for(i in 1:length(model)){
       pOut[i,1]<-model[[i]][which(rownames(model[[i]]) == variable),4]
-      zOut[i,1]<-qnorm(model[[i]][which(rownames(model[[i]]) == variable),4], lower.tail=F)
+      zOut[i,1]<-sign(model[[i]][which(rownames(model[[i]]) == variable),3])*qnorm((model[[i]][which(rownames(model[[i]]) == variable),4] / 2), lower.tail=F)
       tOut[i,1]<-model[[i]][which(rownames(model[[i]]) == variable),3]
     }
     
