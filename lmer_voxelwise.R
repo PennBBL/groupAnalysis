@@ -41,7 +41,10 @@ option_list = list(
   make_option(c("-d", "--skipfourD"), action="store", default=FALSE, type='logical',
               help="Option to skip creation of fourdD image and look for it in the Analysis Directory.
               4D image must be labeled as 'fourd.nii.gz'. Will also skip smoothing step.
-              Default (FALSE) means to not skip")
+              Default (FALSE) means to not skip"),
+  make_option(c("-r", "--residual"), action="store", default=FALSE, type='logical',
+              help="Option to output residual 4D image.
+              Default (FALSE) means to not generate residual maps")
   
   )
 
@@ -59,7 +62,7 @@ print("#########################################################################
 print("################  Linear Mixed Effects Model Voxelwise Script  ###############")
 print("################            Angel Garcia de la Garza           ###############")
 print("################              angelgar@upenn.edu               ###############")
-print("################                 Version 2.0.0                 ###############")
+print("################                 Version 3.0.0                 ###############")
 print("##############################################################################")
 
 ##############################################################################
@@ -301,47 +304,166 @@ print("Preallocate output done")
 ##############################################################################
 timeOn<-proc.time()
 
-k <- 0
-rm(k)
 length.voxel <- ceiling(dim(imageMat)[2] / splits)
 
-# We create a list of formulas for each voxel in our data. 
-# Each element in the list will have formula with a different voxel as the dependent variable
-print("Running Test Model")
 
 
-m <- mclapply(1:10, function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
-test <- base::do.call(lmerTest::lmer, list(formula = m[[1]], data=subjData,  method="REML"))
-test <- lmerTest::lmer(formula = m[[1]], data=subjData, REML = TRUE)
-
-
-
-model <- mclapply(m, function(x) {
-  foo <- base::do.call(lmerTest::lmer, list(formula = x, data=subjData,  method="REML"))
-  return(summary(foo)$coefficients)
-}, mc.cores = ncores)
-
-
-print("Test Models Done; Running Parallel Models")
-for (k in 1:(splits)) {
-  if (k == splits) {
-    m <- mclapply((11 + (k-1)*length.voxel):dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
-  } else {
-    m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
-  }
-  model.temp <- mclapply(m, function(x) {
+#If statement to create or not create residual 4D image. 
+if (!residualMap) { 
+  
+  # We create a list of formulas for each voxel in our data. 
+  # Each element in the list will have formula with a different voxel as the dependent variable
+  print("Running Test Model")
+  
+  m <- mclapply(1:10, function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
+  test <- base::do.call(lmerTest::lmer, list(formula = m[[1]], data=subjData,  method="REML"))
+  test <- lmerTest::lmer(formula = m[[1]], data=subjData, REML = TRUE)
+  
+  
+  
+  model <- mclapply(m, function(x) {
     foo <- base::do.call(lmerTest::lmer, list(formula = x, data=subjData,  method="REML"))
     return(summary(foo)$coefficients)
   }, mc.cores = ncores)
   
-  model <- c(model, model.temp)
+  
+  print("Test Models Done; Running Parallel Models")
+  for (k in 1:(splits)) {
+    if (k == splits) {
+      m <- mclapply((11 + (k-1)*length.voxel):dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+    } else {
+      m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+    }
+    model.temp <- mclapply(m, function(x) {
+      foo <- base::do.call(lmerTest::lmer, list(formula = x, data=subjData,  method="REML"))
+      return(summary(foo)$coefficients)
+    }, mc.cores = ncores)
+    
+    model <- c(model, model.temp)
+    percent <- (k / splits) * 100
+    print(paste0(percent, "% of voxels done"))
+  }
+  
+  loopTime<-proc.time()-timeOn
+  
+  
+  print("Models are done")
+  print(loopTime/60)
+  
+} else {
+  
+  # We create a list of formulas for each voxel in our data. 
+  # Each element in the list will have formula with a different voxel as the dependent variable
+  print("Running Test Model")
+  
+  m <- mclapply(1:10, function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)
+  test <- base::do.call(lmerTest::lmer, list(formula = m[[1]], data=subjData,  method="REML"))
+  test <- lmerTest::lmer(formula = m[[1]], data=subjData, REML = TRUE)
+  
+  
+  
+  model <- mclapply(m, function(x) {
+    foo <- base::do.call(lmerTest::lmer, list(formula = x, data=subjData,  method="REML"))
+    return(list(summary(foo)$coefficients, summary(foo)$residuals))
+  }, mc.cores = ncores)
+  
+  
+  print("Test Models Done; Running Parallel Models")
+  for (k in 1:(splits)) {
+    if (k == splits) {
+      m <- mclapply((11 + (k-1)*length.voxel):dim(imageMat)[2], function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+    } else {
+      m <- mclapply((11 + (k-1)*length.voxel):(10 + (k)*length.voxel), function(x) {as.formula(paste(paste0("imageMat[,",x,"]"), covsFormula, sep=""))}, mc.cores = ncores)  
+    }
+    model.temp <- mclapply(m, function(x) {
+      foo <- base::do.call(lmerTest::lmer, list(formula = x, data=subjData,  method="REML"))
+      return(list(summary(foo)$coefficients, summary(foo)$residuals))
+    }, mc.cores = ncores)
+    
+    model <- c(model, model.temp)
+    
+    percent <- (k / splits) * 100
+    print(paste0(percent, "% of voxels done"))
+  }
+  
+  ##Remove tsmatrix
+  dimMat <- dim(imageMat)
+  rm(imageMat)
+  gc()
+  
+  #Generate tsresiduals
+  residualList <- mclapply(model, function(x) {
+    return(x[[2]])
+  }, mc.cores = ncores)
+  
+  #Generate tsresiduals
+  residualMat <- mcmapply(function(x) {
+    return(x)
+  }, residualList, mc.cores = ncores, SIMPLIFY = TRUE)
+  
+  rm(residualList)
+  gc()
+  
+  #Save only parameter tables under models
+  model <- mclapply(model, function(x) {
+    return(x[[1]])
+  }, mc.cores = ncores)
+  
+  loopTime<-proc.time()-timeOn
+  
+  print("Models are done")
+  print(loopTime/60)
+  
+  print("Generating Residual timeseries")
+  
+  ### Create output
+  residualMask <- mask
+  residualMask <- residualMask@.Data
+  
+  #remove image in for memorize optimization purposes
+  dataTypeIn <- datatype(imageIn)
+  rm(imageIn)
+  gc()
+  
+  Residualnames <- "temp"
+  subj.split <- ceiling(dim(residualMat)[1] / splits)
+  
+  for (k in 1:(splits)) {
+    
+    if (k == splits) {
+      seq <- (1 + (k-1)*subj.split):(dim(residualMat)[1])
+      print(c(seq[1], seq[length(seq)]))
+    } else {
+      seq <- (1 + (k-1)*subj.split):(k*subj.split)
+      print(c(seq[1], seq[length(seq)]))
+    }
+    
+    #generate 4d residual image
+    residuals <- mcmapply(function(x) {
+      residualMask[mask@.Data==1] <- residualMat[x,] 
+      return(residualMask)
+    }, seq, SIMPLIFY = "array", mc.cores = ncores, mc.preschedule=F)
+    
+    #Write it out 
+    residualNii <- nifti(residuals, dim = dim(residuals), datatype = dataTypeIn)
+    
+    rm(residuals)
+    gc()
+    
+    writeNIfTI2(residualNii,paste0("lmer_residualMap_", k))
+    Residualnames <- c(Residualnames, paste0("lmer_residualMap_", k,".nii.gz"))
+  }
+  
+  Residualnames <- Residualnames[-1]
+  fslmerge(Residualnames, direction="t", outfile="lmer_residualMap.nii.gz")
+  system('rm -f lmer_residualMap_*.nii.gz')
+  
+  print("DONE: Residual timeseries")
+  
 }
 
-loopTime<-proc.time()-timeOn
 
 
-print("Models are done")
-print(loopTime/60)
 
 ##############################################################################
 ################        Allocate out t-map and z-map            ###############
